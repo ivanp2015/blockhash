@@ -323,6 +323,25 @@ static int process_video_file(const hash_computation_task* task)
 				    task->file_name);
 			    goto cleanup;
 			}
+			if(task->debug) {
+			    size_t file_name_buffer_size = strlen(task->file_name) + 128;
+			    char* file_name_buffer = malloc(file_name_buffer_size);
+			    strcpy(file_name_buffer, task->file_name);
+			    char buffer[48];
+			    snprintf(buffer, 48, "-frm-%llu.bmp", (unsigned long long)current_frame);
+			    strcat(file_name_buffer, buffer);
+			    printf("Saving frame #%llu into file '%s'...\n", (unsigned long long)current_frame, file_name_buffer);
+			    FILE* f = fopen(file_name_buffer, "wb");
+			    if(f) {
+				if(fwrite(mat->data.ptr, mat->cols, 1, f) != 1) {
+				    fprintf(stderr, "Warning: Failed to write data into file '%s' for writing.\n", file_name_buffer);
+				} else {
+				    fclose(f);
+				    printf("Saved frame #%llu into file '%s'.\n", (unsigned long long)current_frame, file_name_buffer);
+				}
+			    }
+			    else fprintf(stderr, "Warning: Failed to open file '%s' for writing.\n", file_name_buffer);
+			}
 		    }
 		    hash_frames[i].hash = process_video_frame(task, current_frame, mat);
 		    ++next_hash_frame;
@@ -393,10 +412,10 @@ static void show_help(char* program_name)
     printf("Usage: %s [-h|--help] [-v|--version] [--quick] [--video] [--bits BITS] [--debug] filenames...\n"
            "\n"
            "Optional arguments:\n"
-           "-h, --help            Show this help message and exit\n"
-           "-v, --version         Show program version information and exit\n"
+           "-h, --help            Show this help message and exit.\n"
+           "-v, --version         Show program version information and exit.\n"
            "-q, --quick           Use quick hashing method.\n"
-           "-V, --video           Expect video files instead of image files\n"
+           "-V, --video           Expect video files instead of image files.\n"
            "-b, --bits BITS       Specify hash size (N^2) bits.\n"
            "                      Default is %d which gives %d-bit hash.\n"
            "--debug               Print debugging information.\n"
