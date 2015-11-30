@@ -2,7 +2,7 @@
  * Perceptual image hash calculation tool based on algorithm descibed in
  * Block Mean Value Based Image Perceptual Hashing by Bian Yang, Fan Gu and Xiamu Niu
  *
- * Copyright 2014-2015 Commons Machinery http://commonsmachinery.se/
+ * Copyright (c) 2014-2015 Commons Machinery http://commonsmachinery.se/
  * Distributed under an MIT license, please see LICENSE in the top dir.
  */
 
@@ -16,11 +16,12 @@
 #include <wand/MagickWand.h>
 #include "blockhash.h"
 #include "processing.h"
+#include "phs.h"
 
 int process_image_file(const hash_computation_task* task)
 {
     int result = 0;
-    int *hash;
+    int *hash, hash_size;
     MagickWand *magick_wand;
 
     // Load Image
@@ -28,26 +29,30 @@ int process_image_file(const hash_computation_task* task)
     if(!magick_wand) return -1;
     
     // Compute Image Hash
-    result = compute_image_hash(magick_wand, task->bits, task->quick, &hash);
+    result = compute_image_hash(magick_wand, task->bits, task->hashing_method, &hash, &hash_size);
     
     switch(result)
     {
         case 0: {
             // Show debug output
-            if (task->debug) {
-                printf("Dump of the image hash:\n");
+            if (task->debug && task->hashing_method < HM_PHASH_DCT64) {
+                printf("Dump of the image blockhash:\n");
                 debug_print_hash(hash, task->bits);
             }
             
-            // Print blockhash string
-            char* hex = blockhash_to_str(hash, task->bits * task->bits);
-            if(hex) {
-                printf("%s  %s\n", hex, task->src_file_name);
-                free(hex);
+            if(task->hashing_method < HM_PHASH_DCT64) {
+                // Print blockhash string
+                char* hex = blockhash_to_str(hash, hash_size);
+                if(hex) {
+                    printf("%s  %s\n", hex, task->src_file_name);
+                    free(hex);
+                } else {
+                    result = -1;
+                    fprintf(stderr, "Error: Failed to convert hash value to string for the image file '%s'.\n", 
+                            task->src_file_name);
+                }
             } else {
-                result = -1;
-                fprintf(stderr, "Error: Failed to convert blockhash value to string for the image file '%s'.\n", 
-                        task->src_file_name);
+                print_hash(task->src_file_name, hash, hash_size);
             }
             
             // Free hash buffer
@@ -56,7 +61,7 @@ int process_image_file(const hash_computation_task* task)
         }
         
         case 1: {
-            fprintf(stderr, "Error: Failed to compute blockhash for the zero-sized image file '%s'.\n", 
+            fprintf(stderr, "Error: Failed to compute hash for the zero-sized image file '%s'.\n", 
                     task->src_file_name);
             break;
         }
@@ -67,7 +72,7 @@ int process_image_file(const hash_computation_task* task)
             break;
         }
         default: {
-            fprintf(stderr, "Error: Failed to compute blockhash for the image file '%s'.\n", 
+            fprintf(stderr, "Error: Failed to compute hash for the image file '%s'.\n", 
                     task->src_file_name);
             break;
         }
@@ -81,8 +86,10 @@ int process_image_file(const hash_computation_task* task)
 }
 
 
-int compute_image_hash(MagickWand* magick_wand, int bits, int quick, int** hash) 
+int compute_image_hash(MagickWand* magick_wand, int bits, HashingMethod hashing_method, int** hash, int* hash_size) 
 {
+    int res = 0;
+    const char* color_model;
     MagickBooleanType status;
     size_t width, height, data_size;
     unsigned char *image_data;
@@ -93,7 +100,7 @@ int compute_image_hash(MagickWand* magick_wand, int bits, int quick, int** hash)
     // Compute pixel data size
     width = MagickGetImageWidth(magick_wand);
     height = MagickGetImageHeight(magick_wand);
-    data_size = width * height * 4;
+    data_size = width * height * (hashing_method >= HM_PHASH_DCT64 ? 3 : 4);
     
     // Handle special zero size case
     if(data_size == 0) {      
@@ -107,15 +114,47 @@ int compute_image_hash(MagickWand* magick_wand, int bits, int quick, int** hash)
     
     // Export pixel data
     image_data = (unsigned char*) malloc(data_size);
-    if(!image_data) return 2;
+    if(!image_data) {
+        fprintf(stderr, "Error: Failed to allocate memory for image data.\n");
+        return 2;
+    }
     
-    status = MagickExportImagePixels(magick_wand, 0, 0, width, height, "RGBA", CharPixel, image_data);
-    if (status == MagickFalse) return 3;
+    color_model = hashing_method >= HM_PHASH_DCT64 ? "RGB" : "RGBA";
+    status = MagickExportImagePixels(magick_wand, 0, 0, width, height, color_model, CharPixel, image_data);
+    if (status == MagickFalse) {
+        fprintf(stderr, "Error: Failed to get image data in the color model %s.\n", color_model);
+        return 3;
+    }
     
     // Compute blockhash
-    return (quick)
-        ? blockhash_quick(bits, image_data, width, height, hash)
-        : blockhash(bits, image_data, width, height, hash);    
+    switch(hashing_method)
+    {
+        case HM_BLOCKHASH: {
+            res = blockhash(bits, image_data, width, height, hash);
+            if(!res) *hash_size = bits * bits;
+            break;
+        }
+        
+        case HM_BLOCKHASH_QUICK: {
+            res =  blockhash_quick(bits, image_data, width, height, hash);
+            if(!res) *hash_size = bits * bits;
+            break;
+        }
+        
+        case HM_PHASH_DCT64: {
+            res = phs_dct_image_hash(image_data, width, height, hash);
+            if(!res) *hash_size = 2;
+            break;
+        }
+        
+        default: {
+            fprintf(stderr, "Error: unsuppoted hashing method #%d!\n", (int)hashing_method);
+            res = 4;
+            break;
+        }
+    }
+    
+    return res;
 }
 
 

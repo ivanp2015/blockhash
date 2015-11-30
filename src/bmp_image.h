@@ -1,3 +1,11 @@
+/*
+ * Perceptual image hash calculation tool based on algorithm descibed in
+ * Block Mean Value Based Image Perceptual Hashing by Bian Yang, Fan Gu and Xiamu Niu
+ *
+ * Copyright (c) 2014-2015 Commons Machinery http://commonsmachinery.se/
+ * Distributed under an MIT license, please see LICENSE in the top dir.
+ */
+
 #ifndef __BLOCKHASH_BMP_IMAGE_H__
 #define __BLOCKHASH_BMP_IMAGE_H__ 
 

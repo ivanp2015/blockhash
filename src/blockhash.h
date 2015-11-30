@@ -2,7 +2,7 @@
  * Perceptual image hash calculation library based on algorithm descibed in
  * Block Mean Value Based Image Perceptual Hashing by Bian Yang, Fan Gu and Xiamu Niu
  *
- * Copyright 2014-2015 Commons Machinery http://commonsmachinery.se/
+ * Copyright (c) 2014-2015 Commons Machinery http://commonsmachinery.se/
  * Distributed under an MIT license, please see LICENSE in the top dir.
  */
 

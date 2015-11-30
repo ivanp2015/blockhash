@@ -21,6 +21,7 @@ CFLAGS+=$(shell MagickWand-config --cflags)
 LDFLAGS:=-L. $(shell MagickWand-config --ldflags)
 
 LIBS:= 	-lblockhash \
+	-lphash_simple \
 	$(shell MagickWand-config --libs) \
 	-lavformat \
 	-lavcodec \
@@ -38,7 +39,7 @@ build: blockhash
 
 clean:
 	-rm -f *.o
-	-rm -f libblockhash.a
+	-rm -f *.a
 	-rm -f blockhash
 
 rebuild: clean build
@@ -46,10 +47,13 @@ rebuild: clean build
 install: blockhash
 	install -c -t /usr/local/bin blockhash
 	
-blockhash: libblockhash.a main.o misc.o process_image.o process_video.o
+blockhash: libblockhash.a libphash_simple.a main.o misc.o process_image.o process_video.o
 	$(LD) -o $@ $(LDFLAGS)  $^ $(LIBS)
 	
 libblockhash.a : blockhash.o
+	$(AR) rvs $(ARFLAGS) $@ $^
+
+libphash_simple.a : phs_dct_image_hash.o
 	$(AR) rvs $(ARFLAGS) $@ $^
 	
 %.o: %.c

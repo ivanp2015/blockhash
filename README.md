@@ -1,8 +1,9 @@
 blockhash
 =========
 
-This is a perceptual image and video hash calculation tool based on algorithm descibed in
-Block Mean Value Based Image Perceptual Hashing by Bian Yang, Fan Gu and Xiamu Niu.
+This is a perceptual image and video hash calculation tool which supports:
+- algorithm descibed in Block Mean Value Based Image Perceptual Hashing by Bian Yang, Fan Gu and Xiamu Niu
+- phash algorithm
 
 Build and install
 -----------------

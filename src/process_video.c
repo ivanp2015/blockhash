@@ -2,7 +2,7 @@
  * Perceptual image hash calculation tool based on algorithm descibed in
  * Block Mean Value Based Image Perceptual Hashing by Bian Yang, Fan Gu and Xiamu Niu
  *
- * Copyright 2014-2015 Commons Machinery http://commonsmachinery.se/
+ * Copyright (c) 2014-2015 Commons Machinery http://commonsmachinery.se/
  * Distributed under an MIT license, please see LICENSE in the top dir.
  */
 
@@ -20,53 +20,7 @@
 #include "blockhash.h"
 #include "bmp_image.h"
 #include "processing.h"
-
-#ifdef __BIG_ENDIAN__
-# define BIG_ENDIAN
-#elif defined __LITTLE_ENDIAN__
-/* override */
-#elif defined __BYTE_ORDER__
-# if __BYTE_ORDER__ ==  __ORDER_BIG_ENDIAN__
-# define BIG_ENDIAN
-# endif
-#else // ! defined __LITTLE_ENDIAN__
-#ifdef HAVE_MACHINE_ENDIAN_H
-# include <machine/endian.h>
-#else
-# include <endian.h>
-#endif
-# if __BYTE_ORDER__ ==  __ORDER_BIG_ENDIAN__
-#  define BIG_ENDIAN
-# endif
-#endif
-
-
-#ifdef BIG_ENDIAN
-
-#define WRITE_LE_2( p, n ) \
-    ( \
-                ( (uint8_t*) (p) )[ 0 ] = (uint8_t) (n), \
-                ( (uint8_t*) (p) )[ 1 ] = (uint8_t) ( (n) >> 8) \
-    )
-        
-#define WRITE_LE_4( p, n ) \
-    ( \
-                ( (uint8_t*) (p) )[ 0 ] = (uint8_t) (n), \
-                ( (uint8_t*) (p) )[ 1 ] = (uint8_t) ( (n) >> 8), \
-                ( (uint8_t*) (p) )[ 2 ] = (uint8_t) ( (n) >> 16), \
-                ( (uint8_t*) (p) )[ 3 ] = (uint8_t) ( (n) >> 24) \
-        )
-
-#define SET_LE_2(x, v) WRITE_LE_2(&x, (v))
-#define SET_LE_4(x, v) WRITE_LE_4(&x, (v))
-
-#else
-
-#define SET_LE_2(x, v) x = (v)
-#define SET_LE_4(x, v) x = (v)
-
-#endif
-
+#include "phs_endian.h"
 
 static MagickWand* load_image_from_frame(const char* src_file_name, size_t frame_number, void* frame_data, size_t frame_data_size) 
 {
@@ -86,7 +40,7 @@ static MagickWand* load_image_from_frame(const char* src_file_name, size_t frame
     return magick_wand;    
 }
 
-int* process_video_frame(const hash_computation_task* task, size_t frame_number, void* frame_data, size_t frame_data_size)
+int* process_video_frame(const hash_computation_task* task, size_t frame_number, void* frame_data, size_t frame_data_size, int* hash_size)
 {
     int result = 0;
     int *hash;
@@ -97,15 +51,18 @@ int* process_video_frame(const hash_computation_task* task, size_t frame_number,
     if(!magick_wand) return NULL;
     
     // Compute Image Hash
-    result = compute_image_hash(magick_wand, task->bits, task->quick, &hash);
+    result = compute_image_hash(magick_wand, task->bits, task->hashing_method, &hash, hash_size);
     
     switch(result)
     {
         case 0: {
             // Show debug output
-            if (task->debug) {
-                printf("Dump of the frame#%llu hash:\n", (unsigned long long)frame_number);
+            if (task->debug && task->hashing_method < HM_PHASH_DCT64) {
+                printf("Dump of the frame#%llu blockhash:\n", (unsigned long long)frame_number);
                 debug_print_hash(hash, task->bits);
+            } else {
+                printf("Dump of the frame#%llu hash:\n", (unsigned long long)frame_number);
+                print_hash(NULL, hash, *hash_size);                
             }
             break;
         }
@@ -157,6 +114,7 @@ typedef struct _video_decoding_state video_decoding_state;
 typedef struct _video_frame_info {
     size_t frame_number;
     int* hash;
+    int hash_size;
 } video_frame_info;
 
 
@@ -176,6 +134,7 @@ int process_video_file(const hash_computation_task* task)
     int* hash = NULL;
     video_decoding_state state;
     video_frame_info hash_frames[HASH_PART_COUNT];
+    int total_hash_size;
     
 restart:
     // Initialize data
@@ -397,19 +356,19 @@ restart:
                                 goto cleanup;                                                                
                             }
 
-                            SET_LE_2(bmp->bfh.bfType, 0x4D42); // 'B' 'M'
-                            SET_LE_4(bmp->bfh.bfSize, bmp_size);
+                            SET_LE_16(bmp->bfh.bfType, 0x4D42); // 'B' 'M'
+                            SET_LE_32(bmp->bfh.bfSize, bmp_size);
                             bmp->bfh.bfReserved1 = 0; // not using SET_LE_xx due to zero value
                             bmp->bfh.bfReserved2 = 0; // not using SET_LE_xx due to zero value
                             tmp = sizeof(bitmap_image) - 1;
-                            SET_LE_4(bmp->bfh.bfOffBits, tmp);
-                            SET_LE_4(bmp->bih.biSize, sizeof(bmp->bih));
-                            SET_LE_4(bmp->bih.biWidth, state.video_codec_ctx->width);
-                            SET_LE_4(bmp->bih.biHeight, height);
-                            SET_LE_2(bmp->bih.biPlanes, 1);
-                            SET_LE_2(bmp->bih.biBitCount, 24);
+                            SET_LE_32(bmp->bfh.bfOffBits, tmp);
+                            SET_LE_32(bmp->bih.biSize, sizeof(bmp->bih));
+                            SET_LE_32(bmp->bih.biWidth, state.video_codec_ctx->width);
+                            SET_LE_32(bmp->bih.biHeight, height);
+                            SET_LE_16(bmp->bih.biPlanes, 1);
+                            SET_LE_16(bmp->bih.biBitCount, 24);
                             bmp->bih.biCompression = 0; // not using SET_LE_xx due to zero value
-                            SET_LE_4(bmp->bih.biSizeImage, image_data_size);
+                            SET_LE_32(bmp->bih.biSizeImage, image_data_size);
                             bmp->bih.biXPelsPerMeter = 0; // not using SET_LE_xx due to zero value
                             bmp->bih.biYPelsPerMeter = 0; // not using SET_LE_xx due to zero value
                             bmp->bih.biClrUsed = 0; // not using SET_LE_xx due to zero value
@@ -452,7 +411,7 @@ restart:
                         }
                         
                         {
-                            int* hash = process_video_frame(task, current_frame, bmp, bmp_size);
+                            int* hash = process_video_frame(task, current_frame, bmp, bmp_size, &hash_frames[i].hash_size);
                             if(!hash) {
                                 free(bmp);
                                 av_free_packet(&state.packet);
@@ -482,33 +441,42 @@ restart:
     
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         
-    hash = (int*) malloc(task->bits * task->bits * sizeof(int) * HASH_PART_COUNT);
+    total_hash_size = 0;
+    for(i = 0; i < HASH_PART_COUNT; ++i)
+        total_hash_size += hash_frames[i].hash_size;
+    
+    hash = (int*) malloc(total_hash_size * sizeof(int) * HASH_PART_COUNT);
     if(!hash) {
         fprintf(stderr, "Error creating hash for video file '%s'.\n", task->src_file_name);
         goto cleanup;
     } else {
-        size_t block_element_count = task->bits * task->bits;
-        size_t block_size = block_element_count * sizeof(int);
         int* dest = hash;
-        for(i = 0; i < HASH_PART_COUNT; ++i, dest += block_element_count)
-            memcpy(dest, hash_frames[i].hash, block_size); 
+        for(i = 0; i < HASH_PART_COUNT; ++i) {
+            size_t block_size = hash_frames[i].hash_size * sizeof(int);
+            memcpy(dest, hash_frames[i].hash, block_size);
+            dest += hash_frames[i].hash_size;
+        }
     }
     
 hash_computed:
     // Show debug output
-    if (task->debug)
+    if (task->debug && task->hashing_method < HM_PHASH_DCT64)
         debug_print_hash(hash, task->bits);
 
-    // Print blockhash string
-    char* hex = blockhash_to_str(hash, HASH_PART_COUNT * task->bits * task->bits);
-    if(hex) {
-      result = 0;
-      printf("%s  %s\n", hex, task->src_file_name);
-      free(hex);
+    if(task->hashing_method < HM_PHASH_DCT64) {
+        // Print blockhash string
+        char* hex = blockhash_to_str(hash, HASH_PART_COUNT * task->bits * task->bits);
+        if(hex) {
+        result = 0;
+        printf("%s  %s\n", hex, task->src_file_name);
+        free(hex);
+        } else {
+        result = -1;
+        fprintf(stderr, "Error converting blockhash value to string for the image file '%s'.\n", 
+                task->src_file_name);
+        }
     } else {
-      result = -1;
-      fprintf(stderr, "Error converting blockhash value to string for the image file '%s'.\n", 
-              task->src_file_name);
+        print_hash(task->src_file_name, hash, total_hash_size);
     }
 
     

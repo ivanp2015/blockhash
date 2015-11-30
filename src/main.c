@@ -2,7 +2,7 @@
  * Perceptual image hash calculation tool based on algorithm descibed in
  * Block Mean Value Based Image Perceptual Hashing by Bian Yang, Fan Gu and Xiamu Niu
  *
- * Copyright 2014-2015 Commons Machinery http://commonsmachinery.se/
+ * Copyright (c) 2014-2015 Commons Machinery http://commonsmachinery.se/
  * Distributed under an MIT license, please see LICENSE in the top dir.
  */
 
@@ -31,11 +31,12 @@ static void show_help(char* prog_name)
            "Usage: %s [-h|--help] [-v|--version] [--quick] [--video] [--bits BITS] [--debug] filenames...\n"
            "\n"
            "Optional arguments:\n"
-           "-h, --help            Show this help message and exit\n"
-           "-v, --version         Show program version information and exit\n"
-           "-q, --quick           Use quick hashing method.\n"
-           "-V, --video           Expect video files instead of image files\n"
-           "-b, --bits BITS       Specify hash size (N^2) bits.\n"
+           "-h, --help            Show this help message and exit.\n"
+           "-v, --version         Show program version information and exit.\n"
+           "-q, --quick           Use quick blockhash hashing method.\n"
+           "-p, --phash           Use phash hashing method.\n"
+           "-V, --video           Expect video files instead of image files.\n"
+           "-b, --bits BITS       Specify blockhash hash size (N^2) bits.\n"
            "                      Default is %d which gives %d-bit hash.\n"
            "--debug               Print debugging information.\n"
 	   "                      This includes printing hashes as 2D arrays.\n"
@@ -74,6 +75,7 @@ int main (int argc, char **argv)
         {"help",    no_argument,        0, 'h'},
         {"version", no_argument,        0, 'v'},
         {"quick",   no_argument,        0, 'q'},
+        {"phash",   no_argument,        0, 'p'},
         {"video",   no_argument,        0, 'V'},
         {"bits",    required_argument,  0, 'b'},
         {"debug",   no_argument,        0, 'd'},
@@ -87,7 +89,7 @@ int main (int argc, char **argv)
     
     memset(&task, 0, sizeof(task));
 
-    while ((c = getopt_long(argc, argv, "hvqVb:d",
+    while ((c = getopt_long(argc, argv, "hvqpVb:d",
                  long_options, &option_index)) != -1) {
         switch (c) {
 	  case 'h':
@@ -99,8 +101,12 @@ int main (int argc, char **argv)
 	      return 0;
 	  
 	  case 'q':
-	      task.quick = 1;
+	      task.hashing_method = HM_BLOCKHASH_QUICK;
 	      break;
+
+          case 'p':
+              task.hashing_method = HM_PHASH_DCT64;
+              break;
 
 	  case 'V':
 	      task.video = 1;
