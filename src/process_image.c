@@ -24,6 +24,9 @@ int process_image_file(const hash_computation_task* task)
     int *hash, hash_size;
     MagickWand *magick_wand;
 
+    if(task->debug)
+        printf("Processing image file '%s'...\n", task->src_file_name);
+    
     // Load Image
     magick_wand = load_image_from_file(task->src_file_name);
     if(!magick_wand) return -1;

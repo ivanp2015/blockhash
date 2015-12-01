@@ -29,7 +29,7 @@ Name=TestImageHash1
 Type=Native Application
 
 [Launch][Launch Configuration 1][Data]
-Arguments=-p testdata/stoplights.jpg
+Arguments=--debug -p testdata/00002701.jpg
 Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x00)
 Dependency Action=Nothing
 EnvironmentGroup=default

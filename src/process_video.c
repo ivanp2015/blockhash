@@ -135,6 +135,9 @@ int process_video_file(const hash_computation_task* task)
     video_decoding_state state;
     video_frame_info hash_frames[HASH_PART_COUNT];
     int total_hash_size;
+
+    if(task->debug)
+        printf("Processing video file '%s'...\n", task->src_file_name);
     
 restart:
     // Initialize data
